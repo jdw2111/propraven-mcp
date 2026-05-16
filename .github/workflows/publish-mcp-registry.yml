@@ -1,18 +1,19 @@
 name: Publish to MCP Registry
 
-# Publishes server.json to Anthropic's MCP registry via GitHub Actions OIDC
-# (the `io.github.jdw2111/*` namespace is verified by the registry against
-# the GitHub Actions OIDC token's repository owner — no human OAuth needed).
+# Publishes server.json to Anthropic's MCP registry via GitHub Actions OIDC.
+# The io.github.jdw2111/* namespace is verified against the OIDC token's repo owner.
 #
-# Runs on:
-#   - Manual trigger via the Actions tab
-#   - Tag pushes (v0.1.0, v0.1.1, etc.)
-#   - Pushes to main that touch server.json
+# Order matters: the npm package referenced in server.json's `packages` block
+# must be on the npm registry first, with its `mcpName` field set. This
+# workflow waits for npm propagation before submitting.
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish to npm"]
+    types: [completed]
+    branches: [main]
   push:
-    tags: ["v*"]
     branches: [main]
     paths:
       - "server.json"
@@ -20,11 +21,13 @@ on:
 
 permissions:
   contents: read
-  id-token: write # required for GitHub OIDC
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # If triggered by workflow_run, only proceed when the npm publish succeeded
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +40,20 @@ jobs:
           tar -xzf /tmp/mcp-publisher.tar.gz -C /tmp/
           sudo install /tmp/mcp-publisher /usr/local/bin/mcp-publisher
           mcp-publisher --help | head -2
+
+      - name: Wait for npm package propagation
+        run: |
+          set -e
+          want_version="$(jq -r '.packages[0].version' server.json)"
+          echo "Waiting for @propraven/mcp@${want_version} on npm..."
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            got=$(curl -s "https://registry.npmjs.org/@propraven/mcp/latest" | jq -r '.version // empty')
+            if [ "$got" = "$want_version" ]; then
+              echo "OK"; break
+            fi
+            echo "[$i] not yet (got '$got')"
+            sleep 10
+          done
 
       - name: Validate server.json
         run: mcp-publisher validate
@@ -51,6 +68,4 @@ jobs:
         run: |
           set -e
           sleep 3
-          # List entries in the registry under our namespace
-          curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jdw2111/propraven" | head -c 800
-          echo
+          curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jdw2111/propraven" | jq '.' | head -40

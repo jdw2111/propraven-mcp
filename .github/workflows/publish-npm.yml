@@ -1,0 +1,38 @@
+name: Publish to npm
+
+# Publishes @propraven/mcp to npm via GitHub Actions OIDC trusted publishing.
+# No long-lived NPM_TOKEN required — npm verifies the workflow's OIDC token.
+#
+# To set up:
+#   1. Visit https://www.npmjs.com/package/@propraven/mcp/access
+#   2. Trusted Publishers → Add → GitHub Actions
+#   3. Owner: jdw2111, Repo: propraven-mcp, Workflow: publish-npm.yml, Environment: (blank)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write # for OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish (OIDC trusted publishing, with provenance)
+        run: npm publish --access public --provenance
