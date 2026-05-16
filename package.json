@@ -1,11 +1,11 @@
 {
   "name": "@propraven/mcp",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "description": "Model Context Protocol server for PropRaven — property intelligence for Claude, ChatGPT, Cursor, and any MCP-compatible agent.",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "propraven-mcp": "./dist/index.js"
+    "propraven-mcp": "dist/index.js"
   },
   "files": ["dist", "README.md"],
   "scripts": {
@@ -17,6 +17,14 @@
   },
   "keywords": ["propraven", "mcp", "model-context-protocol", "agents", "claude", "property", "real-estate"],
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jdw2111/propraven-mcp.git"
+  },
+  "homepage": "https://github.com/jdw2111/propraven-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/jdw2111/propraven-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
