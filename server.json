@@ -4,9 +4,28 @@
   "description": "Property intelligence: 180M+ US parcels — lookup, search, owners, hazards, permits, deeds.",
   "version": "0.1.0",
   "repository": {
-    "url": "https://github.com/jdw2111/propzilla",
+    "url": "https://github.com/jdw2111/propraven-mcp",
     "source": "github"
   },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@propraven/mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "PROPRAVEN_API_KEY",
+          "description": "Your PropRaven API key (pz_...). Get one at https://propraven.com/dashboard.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
