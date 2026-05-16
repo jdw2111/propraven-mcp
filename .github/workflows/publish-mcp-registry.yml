@@ -1,0 +1,56 @@
+name: Publish to MCP Registry
+
+# Publishes server.json to Anthropic's MCP registry via GitHub Actions OIDC
+# (the `io.github.jdw2111/*` namespace is verified by the registry against
+# the GitHub Actions OIDC token's repository owner — no human OAuth needed).
+#
+# Runs on:
+#   - Manual trigger via the Actions tab
+#   - Tag pushes (v0.1.0, v0.1.1, etc.)
+#   - Pushes to main that touch server.json
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths:
+      - "server.json"
+      - ".github/workflows/publish-mcp-registry.yml"
+
+permissions:
+  contents: read
+  id-token: write # required for GitHub OIDC
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          VERSION="1.7.9"
+          curl -fsSL -o /tmp/mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          tar -xzf /tmp/mcp-publisher.tar.gz -C /tmp/
+          sudo install /tmp/mcp-publisher /usr/local/bin/mcp-publisher
+          mcp-publisher --help | head -2
+
+      - name: Validate server.json
+        run: mcp-publisher validate
+
+      - name: Login (GitHub Actions OIDC)
+        run: mcp-publisher login github-oidc
+
+      - name: Publish to registry
+        run: mcp-publisher publish
+
+      - name: Verify registration
+        run: |
+          set -e
+          sleep 3
+          # List entries in the registry under our namespace
+          curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.jdw2111/propraven" | head -c 800
+          echo
