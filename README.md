@@ -1,19 +1,39 @@
 # @propraven/mcp
 
-Model Context Protocol server for PropRaven — gives Claude, ChatGPT, Cursor, and any MCP-compatible agent canonical access to 180M+ US parcels with ownership, valuation, permits, deeds, hazard, and market data.
+Model Context Protocol server for PropRaven — gives Claude, ChatGPT, Cursor, and any MCP-compatible agent canonical access to 191.3M US parcels (110.0M mapped) with ownership, valuation, permits, deeds, hazard, and market data.
 
-**Status:** alpha. Hosted endpoint at **`mcp.propraven.com`** — **August 2026**. Until then, run it locally (works today).
+**Hosted endpoint:** **https://propraven.com/mcp** (Streamable HTTP, no install — docs: https://propraven.com/docs/mcp · agents + x402: https://propraven.com/docs/agents). Or run the stdio server locally (below).
+
+---
+
+## Hosted (no install)
+
+Point any HTTP-transport MCP client at **`https://propraven.com/mcp`** with your API key as a bearer header. Claude Desktop / Cursor (`claude_desktop_config.json`, `~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "propraven": {
+      "url": "https://propraven.com/mcp",
+      "headers": { "Authorization": "Bearer pz_your_real_key_here" }
+    }
+  }
+}
+```
+
+Claude Code: `claude mcp add --transport http propraven https://propraven.com/mcp --header "Authorization: Bearer pz_your_real_key_here"`.
+The claude.ai web connector uses OAuth instead — add a custom connector with the same URL and sign in.
 
 ---
 
 ## Local install in Claude Desktop
 
-**Requirements:** Node ≥18, a PropRaven API key (`pz_…`) from https://propraven.com/dashboard.
+**Requirements:** Node ≥18, a PropRaven API key (`pz_…`) from https://propraven.com/settings/api-keys (free, no card).
 
 ### One-time setup
 
 ```bash
-git clone https://github.com/propraven/propraven-mcp.git
+git clone https://github.com/jdw2111/propraven-mcp.git
 cd propraven-mcp
 npm install
 npm run build
@@ -61,7 +81,7 @@ Claude should pick `parcel.lookup` and return canonical record + owner.
 }
 ```
 
-**ChatGPT:** Custom GPT → Actions → connect via OAuth (waiting on `mcp.propraven.com` hosted endpoint — Aug 2026).
+**ChatGPT:** Custom GPT → Actions → OpenAPI URL `https://api.propraven.com/openapi.json` with API-key (Bearer) auth; native MCP-in-ChatGPT can use the hosted endpoint `https://propraven.com/mcp` (OAuth 2.1 + PKCE).
 
 ---
 

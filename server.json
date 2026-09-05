@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.jdw2111/propraven",
-  "description": "Property intelligence: 180M+ US parcels — lookup, search, owners, hazards, permits, deeds.",
-  "version": "0.1.1",
+  "description": "Property intelligence: 180M+ US parcels \u2014 lookup, search, owners, hazards, permits, deeds.",
+  "version": "0.1.2",
   "repository": {
     "url": "https://github.com/jdw2111/propraven-mcp",
     "source": "github"
@@ -18,7 +18,7 @@
       "environmentVariables": [
         {
           "name": "PROPRAVEN_API_KEY",
-          "description": "Your PropRaven API key (pz_...). Get one at https://propraven.com/dashboard.",
+          "description": "Your PropRaven API key (pz_...). Get one at https://propraven.com/settings/api-keys.",
           "isRequired": true,
           "isSecret": true,
           "format": "string"
@@ -29,11 +29,11 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://mcp.propraven.com/mcp",
+      "url": "https://propraven.com/mcp",
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer pz_... — your PropRaven API key. Get one at https://propraven.com/dashboard.",
+          "description": "Bearer pz_... \u2014 your PropRaven API key. Get one at https://propraven.com/settings/api-keys.",
           "isRequired": true,
           "isSecret": true,
           "format": "string"
