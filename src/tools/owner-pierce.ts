@@ -1,50 +1,89 @@
 import { type Tool, callAPI } from "./_types.js";
 import { getClient } from "../client.js";
 
+/** GET /api/v1/owners/search → { data: Owner[], count }. */
+interface OwnerSearch {
+  data?: Array<{ owner_name?: string | null; owner_name_normalized?: string | null; property_count?: number | null }>;
+  count?: number;
+}
+
+interface Portfolio {
+  owner_name?: string;
+  properties?: Array<Record<string, unknown>>;
+  summary?: Record<string, unknown>;
+  match?: unknown;
+  [k: string]: unknown;
+}
+
+const ownerLabel = (o: NonNullable<OwnerSearch["data"]>[number]) => o.owner_name ?? o.owner_name_normalized ?? null;
+
 export const ownerPierce: Tool = {
-  name: "owner.pierce",
+  name: "owner_pierce",
   description:
-    "Resolve an owner name or entity to its full property portfolio. Pierces LLC/Trust veils where PropRaven has linked the " +
-    "entity to its parent (via SEC Ex 21, sponsor parent-rollup, and county-level filings). " +
-    "Returns: canonical owner name, entity type, portfolio summary (count, total value, geographic distribution), and a list of parcels owned. " +
-    "Use when the user names a person, LLC, trust, or public company and wants to see what they own. " +
-    "Do NOT use when starting from a parcel (use parcel.lookup, which returns owner inline). " +
-    "If `ticker` is provided, the tool searches owner records for the company name first (best-effort). " +
-    "Tier-1 portfolios (SEC-tracked public companies — DHI, INVH, AMH, PHM, etc.) have higher confidence on cross-state attribution.",
+    "List the parcels titled under an owner-of-record name (GET /api/v1/owners/{name}/portfolio). Returns the matched owner " +
+    "name, a portfolio `summary` (count, total_value, total_acreage, by_state, truncated) and the `properties` list " +
+    "(parcel_id, county_fips, state_fips, address, assessed values, last sale, match_basis, match_confidence). " +
+    "This matches owner-name SPELLINGS — it is NOT a verified corporate, parent-subsidiary or beneficial-ownership link. " +
+    "Use when the user names a person, LLC, trust, or company and wants to see what is titled under that name. " +
+    "Do NOT use when starting from a parcel (use parcel_lookup, which returns owner inline). " +
+    "`ticker` is best-effort: it runs an owner-name search (GET /api/v1/owners/search) for the ticker text and uses the top " +
+    "match, returning the candidates under `resolution` — verify them, or call again with `name`. " +
+    "`state` filters the returned properties client-side (the summary stays portfolio-wide). Free read — never purchases anything.",
   inputSchema: {
     type: "object",
     properties: {
-      name: { type: "string", description: "Owner name or entity name. Free-form — PropRaven normalizes (trims suffixes, handles trust/LLC variants)." },
-      ticker: { type: "string", description: "Public-company ticker. The tool attempts to resolve to a company name via owner search first." },
-      state: { type: "string", description: "Optional 2-letter state filter to scope the portfolio." },
+      name: {
+        type: "string",
+        description: 'Owner name or entity name as recorded, e.g. "MARKEY ENTERPRISES INC". Preferred over ticker.',
+      },
+      ticker: { type: "string", description: "Public-company ticker. Resolved best-effort via an owner-name search." },
+      state: { type: "string", description: 'Optional 2-letter state (e.g. "NC") or 2-digit state FIPS to filter the property list.' },
     },
   },
-  handler: async (args) => {
-    const c = getClient();
-    let resolvedName = args.name ? String(args.name) : undefined;
+  handler: async (args) =>
+    callAPI(async () => {
+      const c = getClient();
+      const name = typeof args.name === "string" ? args.name.trim() : "";
+      const ticker = typeof args.ticker === "string" ? args.ticker.trim() : "";
+      let resolvedName = name;
+      let resolution: Record<string, unknown> | undefined;
 
-    // If only ticker provided, try resolving to a name via owner search.
-    if (!resolvedName && args.ticker) {
-      try {
-        const search = await c.get<{ data?: Array<{ owner_name: string }> }>(
-          `/api/v1/owners/search`,
-          { q: String(args.ticker), limit: 1 },
-        );
-        if (search.data && search.data[0]) {
-          resolvedName = search.data[0].owner_name;
+      if (!resolvedName && ticker) {
+        const search = await c.get<OwnerSearch>(`/api/v1/owners/search`, { q: ticker, limit: 5 });
+        const candidates = (search?.data ?? []).map(ownerLabel).filter((n): n is string => !!n);
+        if (candidates.length === 0) {
+          throw new Error(`no owner name matched ticker "${ticker}" — call again with \`name\``);
         }
-      } catch {
-        // fall through — error reported below
+        resolvedName = candidates[0];
+        resolution = {
+          via: "owners/search",
+          query: ticker,
+          resolved_name: resolvedName,
+          candidates,
+          note: "Best-effort: the ticker text was searched as an owner name. Verify the match, or call again with `name`.",
+        };
       }
-    }
+      if (!resolvedName) throw new Error("provide `name` (preferred) or `ticker`.");
 
-    if (!resolvedName) {
-      return {
-        content: [{ type: "text", text: "Error: provide `name` (preferred) or `ticker`." }],
-        isError: true,
-      };
-    }
+      const portfolio = await c.get<Portfolio>(`/api/v1/owners/${encodeURIComponent(resolvedName)}/portfolio`);
+      const out: Portfolio = { ...(portfolio ?? {}) };
+      if (resolution) out.resolution = resolution;
 
-    return callAPI(() => c.get(`/api/v1/owners/${encodeURIComponent(resolvedName!)}/portfolio`));
-  },
+      const state = typeof args.state === "string" ? args.state.trim().toUpperCase() : "";
+      if (state && Array.isArray(out.properties)) {
+        const all = out.properties;
+        out.properties = all.filter((p) =>
+          /^\d{1,2}$/.test(state)
+            ? String(p.state_fips ?? "").padStart(2, "0") === state.padStart(2, "0")
+            : String(p.state ?? "").toUpperCase() === state,
+        );
+        out.state_filter = {
+          state,
+          matched: out.properties.length,
+          of_returned: all.length,
+          note: "Filtered client-side over the returned properties; `summary` is portfolio-wide.",
+        };
+      }
+      return out;
+    }),
 };

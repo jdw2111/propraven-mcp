@@ -1,53 +1,72 @@
-import { type Tool, callAPI, requireString, formatJSON } from "./_types.js";
-import { getClient } from "../client.js";
+import { type Tool, callAPI, requireString, toNumber, PARCEL_ID_DESCRIPTION } from "./_types.js";
+import { getClient, parcelPath } from "../client.js";
 
-interface ParcelResponse {
-  assessed_value?: number | null;
-  land_value?: number | null;
-  improvement_value?: number | null;
-  market_value?: number | null;
-  last_sale_date?: string | null;
-  last_sale_price?: number | null;
-  [k: string]: unknown;
+type Parcel = Record<string, unknown>;
+
+const str = (v: unknown): string | null => (v == null || v === "" ? null : String(v));
+
+export function valuationFromParcel(id: string, p: Parcel) {
+  const market_value = toNumber(p.market_value);
+  const avm_value = toNumber(p.avm_value);
+  const total_assessed_value = toNumber(p.total_assessed_value);
+
+  let confidence_note: string;
+  if (market_value != null) {
+    confidence_note =
+      "market_value is PropRaven's modeled estimate — read avm_method / avm_confidence before quoting it. Not an appraisal.";
+  } else if (avm_value != null) {
+    confidence_note =
+      "market_value is not served; avm_value is the modeled estimate (see avm_method / avm_confidence). Not an appraisal.";
+  } else if (total_assessed_value != null) {
+    confidence_note = "No market estimate is served for this parcel; total_assessed_value is the best available proxy.";
+  } else {
+    confidence_note = "PropRaven holds no market estimate or assessment for this parcel.";
+  }
+
+  return {
+    parcel_id: id,
+    market_value,
+    avm_value,
+    avm_confidence: str(p.avm_confidence),
+    avm_method: str(p.avm_method),
+    ...(p.avm_method_family !== undefined ? { avm_method_family: p.avm_method_family } : {}),
+    ...(p.avm_method_basis !== undefined ? { avm_method_basis: p.avm_method_basis } : {}),
+    total_assessed_value,
+    land_assessed_value: toNumber(p.land_assessed_value),
+    improvement_assessed_value: toNumber(p.improvement_assessed_value),
+    tax_amount: toNumber(p.tax_amount),
+    tax_year: toNumber(p.tax_year),
+    last_sale_price: toNumber(p.last_sale_price),
+    last_sale_date: str(p.last_sale_date),
+    price_per_sqft: toNumber(p.price_per_sqft),
+    ...(p.price_per_sqft_basis !== undefined ? { price_per_sqft_basis: p.price_per_sqft_basis } : {}),
+    building_sqft: toNumber(p.building_sqft),
+    confidence_note,
+    as_of_supported: false,
+  };
 }
 
 export const valuationEstimate: Tool = {
-  name: "valuation.estimate",
+  name: "valuation_estimate",
   description:
-    "Estimated market value for a parcel: market estimate, assessed value, last sale price, and the underlying assessment + " +
-    "improvement breakdown. " +
+    "Value fields for a parcel from its free card (GET /api/v1/parcels/{id}): market_value, avm_value with avm_confidence / " +
+    "avm_method, total / land / improvement assessed value, tax, last sale price and date, price_per_sqft. Numbers are " +
+    "normalized to JSON numbers (null = not held). " +
     "Use when the user asks for a property's value, market estimate, AVM, or wants to compare assessed vs market. " +
-    "Do NOT use as a substitute for an appraisal — PropRaven AVM has ±10–15% MAE in normal markets, wider in tail. " +
-    "Historical AVM (as_of) is not yet supported in v1; tool returns the current snapshot.",
+    "Do NOT use as a substitute for an appraisal — this is a modeled estimate. " +
+    "Historical AVM (as_of) is not supported; the tool returns the current snapshot. Free read — never purchases anything.",
   inputSchema: {
     type: "object",
     properties: {
-      parcel_id: { type: "string", description: "Composite parcel ID (county_fips:parcel_id)." },
-      as_of: { type: "string", description: "ISO date — historical AVM. NOT YET SUPPORTED in v1; ignored." },
+      parcel_id: { type: "string", description: PARCEL_ID_DESCRIPTION },
+      as_of: { type: "string", description: "ISO date — historical AVM. NOT SUPPORTED; ignored." },
     },
     required: ["parcel_id"],
   },
-  handler: async (args) => {
-    const id = requireString(args, "parcel_id");
-    return callAPI(
-      async () => {
-        const data = await getClient().get<ParcelResponse>(`/api/v1/parcels/${encodeURIComponent(id)}`);
-        return {
-          parcel_id: id,
-          market_value: data.market_value ?? null,
-          assessed_value: data.assessed_value ?? null,
-          land_value: data.land_value ?? null,
-          improvement_value: data.improvement_value ?? null,
-          last_sale_date: data.last_sale_date ?? null,
-          last_sale_price: data.last_sale_price ?? null,
-          confidence_note:
-            data.market_value === null
-              ? "market_value not available; assessed_value is the best proxy."
-              : "PropRaven AVM ±10–15% MAE in normal markets. Use a licensed appraisal for transactions.",
-          as_of_supported: false,
-        };
-      },
-      formatJSON,
-    );
-  },
+  handler: async (args) =>
+    callAPI(async () => {
+      const id = requireString(args, "parcel_id");
+      const data = await getClient().get<Parcel>(parcelPath(id));
+      return valuationFromParcel(id, data ?? {});
+    }),
 };
