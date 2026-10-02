@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: server.json and package.json versions agree
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          srv="$(jq -r '.version' server.json)"
+          srv_pkg="$(jq -r '.packages[0].version' server.json)"
+          echo "package.json=$pkg server.json=$srv packages[0]=$srv_pkg"
+          [ "$pkg" = "$srv_pkg" ] || { echo "::error::server.json packages[0].version ($srv_pkg) != package.json ($pkg)"; exit 1; }
+
+      - name: Pack (dry run)
+        run: npm pack --dry-run
