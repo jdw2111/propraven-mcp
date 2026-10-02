@@ -9,10 +9,11 @@ name: Publish to MCP Registry
 
 on:
   workflow_dispatch:
+  # No `branches` filter: "Publish to npm" runs on a v* tag, and a tag run's
+  # head_branch is the tag name, so `branches: [main]` never matched it.
   workflow_run:
     workflows: ["Publish to npm"]
     types: [completed]
-    branches: [main]
   push:
     branches: [main]
     paths:
@@ -42,29 +43,46 @@ jobs:
           mcp-publisher --help | head -2
 
       - name: Wait for npm package propagation
+        id: npm
         run: |
-          set -e
+          set -euo pipefail
           want_version="$(jq -r '.packages[0].version' server.json)"
           echo "Waiting for @propraven/mcp@${want_version} on npm..."
+          ready=false
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            got=$(curl -s "https://registry.npmjs.org/@propraven/mcp/latest" | jq -r '.version // empty')
+            got=$(curl -s "https://registry.npmjs.org/@propraven/mcp/${want_version}" \
+              | jq -r 'if type == "object" then (.version // empty) else empty end' 2>/dev/null || true)
             if [ "$got" = "$want_version" ]; then
-              echo "OK"; break
+              echo "OK"; ready=true; break
             fi
             echo "[$i] not yet (got '$got')"
             sleep 10
           done
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          if [ "$ready" != "true" ]; then
+            if [ "${{ github.event_name }}" = "push" ]; then
+              # server.json reached main before the npm release: skip; the
+              # workflow_run after "Publish to npm" will publish it.
+              echo "::notice::@propraven/mcp@${want_version} is not on npm yet; skipping registry publish (it runs after the npm release)."
+            else
+              echo "::error::@propraven/mcp@${want_version} is not on npm"; exit 1
+            fi
+          fi
 
       - name: Validate server.json
+        if: steps.npm.outputs.ready == 'true'
         run: mcp-publisher validate
 
       - name: Login (GitHub Actions OIDC)
+        if: steps.npm.outputs.ready == 'true'
         run: mcp-publisher login github-oidc
 
       - name: Publish to registry
+        if: steps.npm.outputs.ready == 'true'
         run: mcp-publisher publish
 
       - name: Verify registration
+        if: steps.npm.outputs.ready == 'true'
         run: |
           set -e
           sleep 3
