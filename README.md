@@ -76,7 +76,7 @@ Names match the hosted server (`^[a-zA-Z0-9_-]{1,64}$`, as MCP clients and the A
 | `permits_history` | Permit timeline (≤100 newest, with true-count basis) | `GET /api/v1/parcels/{id}/permits?shape=envelope` |
 | `sales_history` | Deed / transfer timeline | `GET /api/v1/parcels/{id}/deeds?shape=envelope` |
 
-**Parcel IDs.** The canonical form is `state_fips:county_fips:parcel_id`, e.g. `37:119:12104406`. The legacy 5-digit form (`37119:12104406`) and PropRaven parcel UUIDs are also accepted. `parcel_search` and `parcel_lookup`'s address search add a `canonical_id` to every result.
+**Parcel IDs.** The canonical form is `state_fips:county_fips:parcel_id`, e.g. `37:119:12104406`. The legacy 5-digit form (`37119:12104406`) and PropRaven parcel UUIDs are also accepted. `parcel_search` and `parcel_lookup`'s address search add a `lookup_id` to every result (search rows carry the PropRaven UUID in `parcel_id`), which `parcel_lookup` / `parcel_compare` accept.
 
 **No tool spends money.** The client only issues `GET`s to the seven free / metered read endpoints above, refuses every other path before a request is sent (the paid parcel report, comp pack, risk score, owner report, leads, storefront, …), and never sends a payment header. If the API ever answers with an x402 `402 Payment Required`, the tool returns `402 payment required — this tool never pays`. Calls still count against your plan's monthly quota. To buy a dossier, use the hosted server's explicit `buy_*` tools or propraven.com.
 

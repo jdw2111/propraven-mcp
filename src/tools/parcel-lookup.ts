@@ -1,6 +1,6 @@
 import { type Tool, callAPI, requireString } from "./_types.js";
 import { getClient, parcelPath } from "../client.js";
-import { canonicalId } from "./parcel-search.js";
+import { withLookupIds } from "./parcel-search.js";
 
 /** Canonical state:county:parcel, e.g. 37:119:12104406. */
 const CANONICAL_ID_RE = /^\d{2}:\d{3}:\S+$/;
@@ -19,7 +19,7 @@ export const parcelLookup: Tool = {
     "Resolve a single US parcel by identifier (canonical state_fips:county_fips:parcel_id, PropRaven UUID, street address, or APN). " +
     "An ID returns the canonical PropRaven parcel card (GET /api/v1/parcels/{id}): identity, current owner, valuation, " +
     "geography and source provenance. An address or APN runs the text search and returns up to 5 candidates — re-call with the " +
-    "chosen candidate's `canonical_id` to get the card. " +
+    "chosen candidate's `lookup_id` to get the card. " +
     "Use when the user names one specific property. " +
     "Do NOT use when ranking multiple parcels (use parcel_compare) or when filtering by criteria (use parcel_search). " +
     'Example: `parcel_lookup({ query: "37:119:12104406" })` or `parcel_lookup({ query: "2232 Wilmore Dr, Charlotte, NC 28203" })`. ' +
@@ -44,10 +44,8 @@ export const parcelLookup: Tool = {
       const query = requireString(args, "query");
       const c = getClient();
       if (isParcelId(query)) return c.get(parcelPath(query));
-      const res = await c.get<{ results?: Array<Record<string, unknown>> }>(`/api/v1/search/full`, { q: query, limit: 5 });
-      if (res && Array.isArray(res.results)) {
-        res.results = res.results.map((r) => ({ canonical_id: canonicalId(r), ...r }));
-      }
-      return res;
+      return withLookupIds(
+        await c.get<{ results?: Array<Record<string, unknown>> }>(`/api/v1/search/full`, { q: query, limit: 5 }),
+      );
     }),
 };

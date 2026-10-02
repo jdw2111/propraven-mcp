@@ -20,7 +20,7 @@
 - `parcel_lookup` treated the canonical ID `37:119:12104406` (and UUIDs) as an address; they now resolve directly.
 - `hazard_score` `include: ["flood"]` returned nothing (there is no `flood` key); it maps to `flood_zone` / `is_sfha` / `is_sfha_basis`, every requested key is present (null when not held) and unknown tokens are an error.
 - `owner_pierce` ignored `state` (now filters the property list) and resolved `ticker` via a field `owners/search` does not always return (now `owner_name` or `owner_name_normalized`, with the candidates returned under `resolution`).
-- `parcel_search` gained `cursor` (sent as the API's keyset `after`); search results carry a `canonical_id`.
+- `parcel_search` gained `cursor` (sent as the API's keyset `after`); search results carry a `lookup_id` (the row's PropRaven UUID, or `state:county:parcel`) that `parcel_lookup` / `parcel_compare` accept.
 - Errors show `<status> <code>: <detail>` from the RFC 7807 body. One retry on `429` / `503` when `Retry-After` ≤ 10 s.
 - The MCP handshake and `User-Agent` (`@propraven/mcp/<version>`) report the package version (was `0.1.0-alpha.1` / `0.1.0`).
 - Parcel-ID wording uses the canonical `state:county:parcel` form (`37:119:12104406`).

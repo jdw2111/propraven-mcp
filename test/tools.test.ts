@@ -216,8 +216,9 @@ describe("defect 6 — owner_pierce, hazard_score, parcel_search vs the spec", (
         ? json({
             owner_name: "MARKEY ENTERPRISES INC",
             properties: [
-              { parcel_id: "1", state: "NC", total_assessed_value: "100.00" },
-              { parcel_id: "2", state: "SC", total_assessed_value: 50 },
+              // Live portfolio rows carry `state` as the FIPS code ("37"), not "NC".
+              { parcel_id: "1", state: "37", state_fips: "37", total_assessed_value: "100.00" },
+              { parcel_id: "2", state: "45", state_fips: "45", total_assessed_value: 50 },
             ],
             summary: { count: 2 },
             match: {},

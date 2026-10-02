@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { toNumber } from "../src/tools/_types.js";
-import { canonicalId } from "../src/tools/parcel-search.js";
+import { lookupId } from "../src/tools/parcel-search.js";
 import { parseRetryAfter, isAllowedPath, parcelPath } from "../src/client.js";
 import { hazardScore } from "../src/tools/hazard-score.js";
 import { parcelCompare } from "../src/tools/parcel-compare.js";
@@ -21,11 +21,14 @@ test("toNumber accepts numbers and numeric strings, rejects junk", () => {
   assert.equal(toNumber(Number.NaN), null);
 });
 
-test("canonicalId builds state:county:parcel from 3- or 5-digit county codes", () => {
-  assert.equal(canonicalId({ state_fips: "37", county_fips: "119", parcel_id: "12104406" }), "37:119:12104406");
-  assert.equal(canonicalId({ state_fips: "37", county_fips: "37119", parcel_id: "12104406" }), "37:119:12104406");
-  assert.equal(canonicalId({ state_fips: "37", county_fips: "119", parcel_id: "37:119:12104406" }), "37:119:12104406");
-  assert.equal(canonicalId({ state_fips: "37", parcel_id: "1" }), null);
+test("lookupId: search rows carry the UUID in parcel_id (as served live); county parcel numbers become state:county:parcel", () => {
+  // Shape observed from production /search/full on 2026-10-02.
+  const live = { parcel_id: "3d6bbeea-aff6-563c-ac1a-e9589b4ce22b", county_fips: "37119", state_fips: "37" };
+  assert.equal(lookupId(live), "3d6bbeea-aff6-563c-ac1a-e9589b4ce22b");
+  assert.equal(lookupId({ state_fips: "37", county_fips: "119", parcel_id: "12104406" }), "37:119:12104406");
+  assert.equal(lookupId({ state_fips: "37", county_fips: "37119", parcel_id: "12104406" }), "37:119:12104406");
+  assert.equal(lookupId({ state_fips: "37", county_fips: "119", parcel_id: "37:119:12104406" }), "37:119:12104406");
+  assert.equal(lookupId({ state_fips: "37", parcel_id: "1" }), null);
 });
 
 test("parseRetryAfter handles seconds and HTTP dates", () => {
@@ -88,4 +91,11 @@ test("parcel_compare include_risks=false skips /risks; a per-parcel x402 402 is 
   const text = toolText(res);
   assert.match(text, /payment required — this tool never pays/);
   assert.doesNotMatch(text, /"risks"/);
+});
+
+test("owner_pierce stateToFips accepts USPS codes and FIPS, rejects junk", async () => {
+  const { stateToFips } = await import("../src/tools/owner-pierce.js");
+  assert.equal(stateToFips("nc"), "37");
+  assert.equal(stateToFips("6"), "06");
+  assert.throws(() => stateToFips("Carolina"), /USPS code or 2-digit FIPS/);
 });

@@ -15,6 +15,35 @@ interface Portfolio {
   [k: string]: unknown;
 }
 
+/** USPS abbreviation → 2-digit state FIPS (portfolio rows carry `state` as the FIPS code, e.g. "37"). */
+const STATE_FIPS: Record<string, string> = {
+  AL: "01", AK: "02", AZ: "04", AR: "05", CA: "06", CO: "08", CT: "09", DE: "10", DC: "11", FL: "12", GA: "13",
+  HI: "15", ID: "16", IL: "17", IN: "18", IA: "19", KS: "20", KY: "21", LA: "22", ME: "23", MD: "24", MA: "25",
+  MI: "26", MN: "27", MS: "28", MO: "29", MT: "30", NE: "31", NV: "32", NH: "33", NJ: "34", NM: "35", NY: "36",
+  NC: "37", ND: "38", OH: "39", OK: "40", OR: "41", PA: "42", RI: "44", SC: "45", SD: "46", TN: "47", TX: "48",
+  UT: "49", VT: "50", VA: "51", WA: "53", WV: "54", WI: "55", WY: "56", AS: "60", GU: "66", MP: "69", PR: "72", VI: "78",
+};
+
+/** Normalize a `state` argument (USPS code or FIPS) to a 2-digit FIPS, or throw. */
+export function stateToFips(input: string): string {
+  const v = input.trim().toUpperCase();
+  if (/^\d{1,2}$/.test(v)) return v.padStart(2, "0");
+  const f = STATE_FIPS[v];
+  if (!f) throw new Error(`state must be a 2-letter USPS code or 2-digit FIPS (got "${input}")`);
+  return f;
+}
+
+/** A portfolio row's state as FIPS: `state_fips`, else `state` (FIPS or USPS code). */
+function rowFips(p: Record<string, unknown>): string | null {
+  for (const v of [p.state_fips, p.state]) {
+    if (v == null || v === "") continue;
+    const s = String(v).trim().toUpperCase();
+    if (/^\d{1,2}$/.test(s)) return s.padStart(2, "0");
+    if (STATE_FIPS[s]) return STATE_FIPS[s];
+  }
+  return null;
+}
+
 const ownerLabel = (o: NonNullable<OwnerSearch["data"]>[number]) => o.owner_name ?? o.owner_name_normalized ?? null;
 
 export const ownerPierce: Tool = {
@@ -69,16 +98,14 @@ export const ownerPierce: Tool = {
       const out: Portfolio = { ...(portfolio ?? {}) };
       if (resolution) out.resolution = resolution;
 
-      const state = typeof args.state === "string" ? args.state.trim().toUpperCase() : "";
-      if (state && Array.isArray(out.properties)) {
+      const stateArg = typeof args.state === "string" ? args.state.trim() : "";
+      if (stateArg && Array.isArray(out.properties)) {
+        const fips = stateToFips(stateArg);
         const all = out.properties;
-        out.properties = all.filter((p) =>
-          /^\d{1,2}$/.test(state)
-            ? String(p.state_fips ?? "").padStart(2, "0") === state.padStart(2, "0")
-            : String(p.state ?? "").toUpperCase() === state,
-        );
+        out.properties = all.filter((p) => rowFips(p) === fips);
         out.state_filter = {
-          state,
+          state: stateArg.toUpperCase(),
+          state_fips: fips,
           matched: out.properties.length,
           of_returned: all.length,
           note: "Filtered client-side over the returned properties; `summary` is portfolio-wide.",
