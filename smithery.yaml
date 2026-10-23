@@ -1,0 +1,19 @@
+# Smithery configuration: https://smithery.ai/docs/build/project-config
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - propravenApiKey
+    properties:
+      propravenApiKey:
+        type: string
+        description: Your PropRaven API key (pz_...). Get one at https://propraven.com/settings/api-keys.
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: { PROPRAVEN_API_KEY: config.propravenApiKey }
+    })
+  exampleConfig:
+    propravenApiKey: pz_your_key_here
