@@ -118,7 +118,7 @@ The inspector at https://modelcontextprotocol.io/legacy/tools/inspector lets you
 
 ## Why this exists
 
-Every Claude / ChatGPT / Cursor workflow that touches property data needs an authoritative parcel-lookup tool. There is no canonical property-data MCP today. PropRaven aims to be it before the first-mover window closes (~12–18 months).
+Agent builders can hand Claude, ChatGPT, Cursor, and any MCP client natural-language tools for US property records: parcels, owners, permits, deeds, hazards, and zoning. A question about an address, who holds title, a permit or deed timeline, a hazard, or a zoning district becomes a tool call in the same conversation.
 
 ---
 
